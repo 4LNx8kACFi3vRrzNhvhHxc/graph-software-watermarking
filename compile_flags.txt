@@ -1,0 +1,10 @@
+-I
+/home/asimos/Documents/uff/ic/waterwark/software-watermark//include
+-I
+./tests
+-DDEBUG
+-fPIC
+-pedantic-errors
+-Wall
+-Wextra
+-Werror

@@ -1,0 +1,30 @@
+1) encode string
+2) encode number
+3) encode number with reed solomon
+4) generate graph from dijkstra code
+5) run removal test
+6) run removal test with improved decoding
+7) run removal test with improved decoding and reed solomon
+8) reed solomon encode
+9) reed solomon decode
+10) show report matrix
+11) get .dot file dijkstra code
+else) exit
+input an option: input number of removals: input maximum number of message symbols: input number of parity symbols: input symbol size (1-8): openmp is being used.
+	number of bits: 1 - 0.000421 secs
+	number of bits: 2 - 0.000891 secs
+	number of bits: 3 - 0.016317 secs
+lost bits\bits in key
+        1     & 2     & 3     & 4     & 5     & 6     & 7     & 8     & 9     & 10    & 11   
+0     & 4     & 32    & 256   & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+1     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+2     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+3     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+4     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+5     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+6     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+7     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+8     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+9     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+10    & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
+Total & 4     & 32    & 256   & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
