@@ -78,5 +78,12 @@ void unmerge_arr(void* data, unsigned long num_symbols, unsigned long element_si
 // 2017 codec-specific
 uint8_t has_possible_backedge(STACK* possible_backedges, GRAPH* graph, unsigned long current_idx);
 unsigned long get_backedge_index(STACK* possible_backedges, GRAPH* graph, unsigned long current_idx);
+// reproducible, thread-safe pseudo-random numbers for the encoder (one state per thread);
+// watermark_encode seeds it from WATERMARK_SEED (default 1) and the encoded bits
+void wm_rand_seed(uint64_t seed);
+uint64_t wm_rand(void);
+uint64_t wm_global_seed(void);
+// random choice of Algorithm 1 for the second bit: 1 = forward edge [2 -> 4], 0 = back edge [1 <- 2]
+uint8_t encoder_choose_forward_at_2(void);
 
 #endif
