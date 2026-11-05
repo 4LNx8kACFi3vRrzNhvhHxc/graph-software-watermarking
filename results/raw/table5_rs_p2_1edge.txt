@@ -11,9 +11,9 @@
 11) get .dot file dijkstra code
 else) exit
 input an option: input number of removals: input maximum number of message symbols: input number of parity symbols: input symbol size (1-8): openmp is being used.
-	number of bits: 1 - 0.000421 secs
-	number of bits: 2 - 0.000891 secs
-	number of bits: 3 - 0.016317 secs
+	number of bits: 1 - 0.000334 secs
+	number of bits: 2 - 0.000725 secs
+	number of bits: 3 - 0.006264 secs
 lost bits\bits in key
         1     & 2     & 3     & 4     & 5     & 6     & 7     & 8     & 9     & 10    & 11   
 0     & 4     & 32    & 256   & 0     & 0     & 0     & 0     & 0     & 0     & 0     & 0    \\ \hline
