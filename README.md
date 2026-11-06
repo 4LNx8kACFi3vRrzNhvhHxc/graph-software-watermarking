@@ -4,7 +4,8 @@ Code and experimental results of the paper **"A Complete Graph-Based Watermarkin
 
 The repository implements the structured watermark codec, which encodes an identifier as a Dijkstra graph and decodes it back, together with:
 
-- the **improved decoder** of the paper, which receives only the watermark graph and the public length n of the encoded sequence and guarantees at most one wrong bit when a single non-Hamiltonian edge is removed;
+- the **improved decoder** of the paper (Algorithm 4), which receives only the watermark graph and the public length n of the encoded sequence and guarantees at most one wrong bit when a single encoding edge is removed, and none when that edge is a forward edge;
+- the **corrected recognition algorithm for Dijkstra graphs** (Algorithm 3), `dijkstra_check_labeled`;
 - the **Reed–Solomon** layer used for exact recovery under single-edge removal;
 - the **removal-test harness** and scripts that reproduce Tables 2–5 of the paper, and the results themselves in [`results/`](results/).
 
@@ -12,17 +13,23 @@ The repository implements the structured watermark codec, which encodes an ident
 
 | Paper | Code |
 | --- | --- |
-| Encoding (Section 4.1) | `watermark_encode` in `src/encoder/encoder.c` |
+| Encoding, Algorithm 1 (Section 4.1) | `watermark_encode` in `src/encoder/encoder.c` |
 | Original decoding [Bento et al.] | `watermark_decode` in `src/decoder/decoder.c` |
-| Improved decoding, Algorithm 3 (Section 5.1) | `watermark_decode_improved` in `src/decoder/decoder.c` |
+| Improved decoding, Algorithm 4 (Section 5.1) | `watermark_decode_improved` in `src/decoder/decoder.c` |
 | Reed–Solomon integration (Section 5.2) | `watermark_rs_encode` in `src/encoder/encoder.c`, `watermark_rs_decode_improved` in `src/decoder/decoder.c`, `src/rs_api/` |
 | Admissibility of back edges | `has_possible_backedge` in `src/utils/utils.c` |
-| Recognition of Dijkstra graphs and their codes | `src/dijkstra/`, `src/checker/` |
+| Corrected recognition of Dijkstra graphs, Algorithm 3 (Section 4.4) | `dijkstra_check_labeled` in `src/dijkstra/dijkstra_labeled.c` |
+| Recognition procedure of [Bento et al. 2019] and Dijkstra codes | `dijkstra_check`, `dijkstra_get_code` in `src/dijkstra/dijkstra.c`, `src/checker/` |
+| Tests of Section 4.4 | `scripts/section44/` |
 | Removal experiments (Section 6) | `attack` and `_test_with_removed_connections` in `watermark.c` |
 
 ### Improved decoder
 
-`watermark_decode_improved(graph, data, num_bits)` uses the buffer `data` only to obtain the length n of the encoded sequence (the position of its leading 1 and its size); the values of its bits are never read. It counts the forward edges expected from |V(G)| and n, compares them with the forward edges present in the graph, and uses the difference to detect a removed forward edge. The position of each vertex in its candidate list is recorded when the vertex is inserted, so the decoder runs in time linear in n.
+`watermark_decode_improved(graph, data, num_bits)` implements Algorithm 4. It uses the buffer `data` only to obtain the length n of the encoded sequence (the position of its leading 1 and its size); the values of its bits are never read. It counts the forward edges expected from |V(G)| and n, compares them with the forward edges present in the graph, and uses the difference to detect removed forward edges (rules R4 and R5). The admissibility test of rule R5 uses candidate lists maintained on the distorted graph, so the decoder runs in time linear in n.
+
+### Randomness of the encoder
+
+`watermark_encode` draws its random choices (the choice between [1 ← 2] and [2 → 4] for the second bit, and the choice among admissible back edges) from a per-thread xorshift generator seeded with `WATERMARK_SEED` (default 1) and with the encoded bits. The graphs therefore depend only on the seed and the identifier, and the experiments give the same results whatever the number of threads.
 
 ## Requirements
 
@@ -61,8 +68,14 @@ All 23 tests pass (checked with gcc 13.3).
 
 ```sh
 make build
-sh scripts/run_tables.sh                                # writes results/raw/
+WATERMARK_SEED=1 sh scripts/run_tables.sh                                # writes results/raw/
 python3 scripts/make_tables.py results/raw results/tables
+```
+
+## Reproducing the tests of Section 4.4
+
+```sh
+sh scripts/section44/run.sh       # see scripts/section44/README.md
 ```
 
 ## Interactive use
@@ -84,7 +97,3 @@ python3 scripts/make_tables.py results/raw results/tables
 ```
 
 Options 5–7 are the removal experiments: they ask for the number of removed edges and the maximum identifier length (or, for option 7, the number of message symbols, of parity symbols and the symbol size) and print the report matrix used in the tables. The environment variable `START_BITS` makes them start at a given length.
-
-## Other files
-
-`test_improved.txt`, `test_rs.txt` and `tests/5_removal.txt` are outputs of earlier versions of the code and are not used in the paper. `cfg.sh` and `get_watermark_candidates.sh` extract the control-flow graphs of the functions in a C file (with clang and LLVM `opt`) to search for functions whose control-flow graphs are Dijkstra graphs; `examples/` contains sample programs for this search.
