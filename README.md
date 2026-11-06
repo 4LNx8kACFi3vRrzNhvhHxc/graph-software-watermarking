@@ -27,10 +27,6 @@ The repository implements the structured watermark codec, which encodes an ident
 
 `watermark_decode_improved(graph, data, num_bits)` implements Algorithm 4. It uses the buffer `data` only to obtain the length n of the encoded sequence (the position of its leading 1 and its size); the values of its bits are never read. It counts the forward edges expected from |V(G)| and n, compares them with the forward edges present in the graph, and uses the difference to detect removed forward edges (rules R4 and R5). The admissibility test of rule R5 uses candidate lists maintained on the distorted graph, so the decoder runs in time linear in n.
 
-### Randomness of the encoder
-
-`watermark_encode` draws its random choices (the choice between [1 ← 2] and [2 → 4] for the second bit, and the choice among admissible back edges) from a per-thread xorshift generator seeded with `WATERMARK_SEED` (default 1) and with the encoded bits. The graphs therefore depend only on the seed and the identifier, and the experiments give the same results whatever the number of threads.
-
 ## Requirements
 
 - A C compiler with OpenMP: clang, as configured in the `Makefile`, or gcc (see below).
@@ -97,7 +93,3 @@ sh scripts/section44/run.sh       # see scripts/section44/README.md
 ```
 
 Options 5–7 are the removal experiments: they ask for the number of removed edges and the maximum identifier length (or, for option 7, the number of message symbols, of parity symbols and the symbol size) and print the report matrix used in the tables. The environment variable `START_BITS` makes them start at a given length.
-
-## Other files
-
-`test_improved.txt`, `test_rs.txt` and `tests/5_removal.txt` are outputs of earlier versions of the code and are not used in the paper. `cfg.sh` and `get_watermark_candidates.sh` extract the control-flow graphs of the functions in a C file (with clang and LLVM `opt`) to search for functions whose control-flow graphs are Dijkstra graphs; `examples/` contains sample programs for this search.
