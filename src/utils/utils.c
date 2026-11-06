@@ -326,20 +326,38 @@ uint8_t has_possible_backedge(STACK* possible_backedges, GRAPH* graph, unsigned 
             graph_get_connection(graph->nodes[current_idx-1], graph->nodes[possible_backedges->stack[0]]));
 }
 
-unsigned long get_backedge_index(STACK* possible_backedges, GRAPH* graph, unsigned long current_idx) {
+static __thread uint64_t wm_rng_state = 0x9E3779B97F4A7C15ULL;
 
-    CONNECTION* last_node_backedge = graph_get_backedge(graph->nodes[current_idx-1]);
-    unsigned long backedge_idx = rand() % possible_backedges->n;
-    if( last_node_backedge && backedge_idx == last_node_backedge->node->graph_idx ) {
-        if(backedge_idx == 0) {
-            return 1;
-        } else if(backedge_idx == possible_backedges->n-1){
-            return backedge_idx-1;
-        } else if(rand()&1) {
-            return backedge_idx-1;
-        } else {
-            return backedge_idx+1;
-        }
-    }
-    return backedge_idx;
+void wm_rand_seed(uint64_t seed) {
+    // splitmix64 scrambling of the seed; the state of xorshift64* must be non-zero
+    uint64_t z = seed + 0x9E3779B97F4A7C15ULL;
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    z ^= z >> 31;
+    wm_rng_state = z ? z : 0x9E3779B97F4A7C15ULL;
+}
+
+uint64_t wm_rand(void) {
+    // xorshift64*
+    wm_rng_state ^= wm_rng_state >> 12;
+    wm_rng_state ^= wm_rng_state << 25;
+    wm_rng_state ^= wm_rng_state >> 27;
+    return wm_rng_state * 0x2545F4914F6CDD1DULL;
+}
+
+uint64_t wm_global_seed(void) {
+    const char* s = getenv("WATERMARK_SEED");
+    return s ? strtoull(s, NULL, 10) : 1;
+}
+
+uint8_t encoder_choose_forward_at_2(void) {
+    return (wm_rand() >> 33) & 1;
+}
+
+unsigned long get_backedge_index(STACK* possible_backedges, GRAPH* graph, unsigned long current_idx) {
+    // uniform choice among the admissible candidates of the required parity (Algorithm 1).
+    // The lists only contain admissible destinations: has_possible_backedge has already
+    // excluded the case in which the previous vertex is the origin of a back edge (condition (ii)).
+    (void)graph; (void)current_idx;
+    return (unsigned long)((wm_rand() >> 11) % possible_backedges->n);
 }
