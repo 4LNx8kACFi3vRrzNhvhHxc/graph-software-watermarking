@@ -72,10 +72,18 @@ GRAPH* watermark_encode(void* data, unsigned long n_bits) {
     // construct hamiltonian path
     for(unsigned long i = 1; i < graph->num_nodes; i++) graph_oriented_connect(graph->nodes[i-1], graph->nodes[i]);
 
-    STACK* odd_stack = stack_create(n);
-    STACK* even_stack = stack_create(n);
+    STACK* odd_stack = stack_create(n*2+2);
+    STACK* even_stack = stack_create(n*2+2);
     stack_push(odd_stack, 0);
-    unsigned long* history = calloc(n*2, sizeof(unsigned long));
+    unsigned long* history = calloc(n*2+2, sizeof(unsigned long));
+
+    // reproducible randomness: the choices depend only on WATERMARK_SEED and on the encoded bits,
+    // so results do not depend on thread scheduling (rand() is not thread-safe under OpenMP)
+    {
+        uint64_t h = wm_global_seed() * 0x100000001B3ULL ^ n;
+        for(unsigned long b = starting_idx; b < total_number_of_bits; b++) h = (h ^ get_bit(data, b)) * 0x100000001B3ULL;
+        wm_rand_seed(h);
+    }
 
     // iterate over the bits
     unsigned long idx = 1;
@@ -90,6 +98,12 @@ GRAPH* watermark_encode(void* data, unsigned long n_bits) {
         // check if there is a forward edge that point to the current node and ignore it if so
         if( idx > 1 && graph_get_connection(graph->nodes[idx-2], graph->nodes[idx]) ) {
             i--;
+        // Algorithm 1, lines 3-9: for the second bit, if it is a 1, choose at random between the
+        // back edge [1 <- 2] (general branch below) and the forward edge [2 -> 4]
+        } else if( idx == 1 && bit && encoder_choose_forward_at_2() ) {
+            graph_add(graph);
+            graph_oriented_connect(graph->nodes[graph->num_nodes-2], graph->nodes[graph->num_nodes-1]);
+            graph_oriented_connect(graph->nodes[idx], graph->nodes[idx+2]);
         // if there are available backedges in the backedge stack, taking into account that we
         // can't connect a backedge to a node that the last node also does
         } else if( has_possible_backedge(possible_backedges, graph, idx) ) {
@@ -103,6 +117,11 @@ GRAPH* watermark_encode(void* data, unsigned long n_bits) {
                     graph_oriented_connect(graph->nodes[idx], graph->nodes[idx-1]);
                     // remove hamiltonian edge
                     graph_oriented_disconnect(graph->nodes[idx], graph->nodes[idx+1]);
+                    // as for any back edge [w <- v], remove w = v-1 and every later candidate from
+                    // both lists, so that v-1 cannot receive a second back edge (condition (v))
+                    unsigned long w = idx-1;
+                    while( possible_backedges->n && possible_backedges->stack[possible_backedges->n-1] >= w ) stack_pop(possible_backedges);
+                    while( other_stack->n && other_stack->stack[other_stack->n-1] >= w ) stack_pop(other_stack);
                     // while block is built!
                 } else {
                     // nothing needs to be done, and we have an if block built!
