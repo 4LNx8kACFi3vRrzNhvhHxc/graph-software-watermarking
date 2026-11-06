@@ -27,21 +27,6 @@ void* watermark2014_decode(GRAPH* graph, unsigned long* num_bytes) {
     return data;
 }
 
-int watermark_decode_improved_four_last_are_mute(GRAPH* graph) {
-  return graph->num_nodes > 3 &&
-    graph->nodes[graph->num_nodes-1]->num_out_neighbours == 0 && graph->nodes[graph->num_nodes-1]->num_in_neighbours == 1 &&
-    graph->nodes[graph->num_nodes-2]->num_out_neighbours == 1 && graph->nodes[graph->num_nodes-2]->num_in_neighbours == 1 && graph_get_connection(graph->nodes[graph->num_nodes-2], graph->nodes[graph->num_nodes-1]) &&
-    graph->nodes[graph->num_nodes-3]->num_out_neighbours == 1 && graph->nodes[graph->num_nodes-3]->num_in_neighbours == 1 && graph_get_connection(graph->nodes[graph->num_nodes-3], graph->nodes[graph->num_nodes-2]) &&
-    graph->nodes[graph->num_nodes-4]->num_out_neighbours == 1 && graph->nodes[graph->num_nodes-4]->num_in_neighbours == 1 && graph_get_connection(graph->nodes[graph->num_nodes-4], graph->nodes[graph->num_nodes-3]);
-}
-
-int watermark_decode_improved_sequence_of_three(GRAPH* graph, unsigned long graph_idx) {
-  return graph->num_nodes - graph_idx - 1 > 3 &&
-  graph->nodes[graph_idx]->num_out_neighbours == 1 && graph_get_connection(graph->nodes[graph_idx], graph->nodes[graph_idx+1]) &&
-  graph->nodes[graph_idx+1]->num_out_neighbours == 1 && graph_get_connection(graph->nodes[graph_idx+1], graph->nodes[graph_idx+2]) &&
-  graph->nodes[graph_idx+2]->num_out_neighbours == 1 && graph_get_connection(graph->nodes[graph_idx+2], graph->nodes[graph_idx+3]);
-}
-
 void* watermark_decode_improved8(GRAPH* graph, uint8_t* data, unsigned long* num_bytes) {
 
   // convert to bits
@@ -52,151 +37,92 @@ void* watermark_decode_improved8(GRAPH* graph, uint8_t* data, unsigned long* num
   return res;
 }
 
+// Improved decoding: Algorithm 4 of the paper.
+// BLIND decoding: only the length n of `data` is used (position of its leading 1 and total size);
+// its bit values are never read. Vertices are numbered 1..N along the backbone (assumption (A1)).
+//
+// Candidate lists (one per parity) are maintained on the possibly distorted graph G' for every
+// vertex, mute or not, exactly as in the encoder: a vertex u is inserted after it is processed if it
+// is not the origin of a back edge and [u-1 -> u+1] is not in G'; when a back edge [w <- u] is met,
+// w and every later candidate are removed from both lists. Together with conditions (i) and (ii),
+// tested explicitly, this decides in O(1) whether an odd-span back edge [w <- v] is admissible.
+static void wm_list_truncate(unsigned long* list, unsigned long* size, unsigned long w) {
+    while(*size && list[*size - 1] >= w) (*size)--;
+}
+
 void* watermark_decode_improved(GRAPH* graph, uint8_t* data, unsigned long* num_bits) {
-    // BLIND decoding: only the expected length n of `data` is used
-    // (position of its leading 1 and total size); its bit values are never read.
     unsigned long data_num_bits = *num_bits;
-    unsigned long num_bytes = *num_bits / 8 + !!(*num_bits % 8);
-    unsigned long data_begin = get_first_positive_bit_index(data, num_bytes);
+    unsigned long num_bytes = data_num_bits / 8 + !!(data_num_bits % 8);
+    unsigned long n = data_num_bits - get_first_positive_bit_index(data, num_bytes);
+    unsigned long N = graph->num_nodes;
 
-    unsigned long n_bits = graph->num_nodes-2;
-    uint8_t bits[n_bits];
-    bits[0] = 1;
-    unsigned long i = 1;
-
-    STACK* odd_stack = stack_create(n_bits);
-    STACK* even_stack = stack_create(n_bits);
-    stack_push(odd_stack, 0);
-    unsigned long* history = calloc(n_bits*2, sizeof(unsigned long));
-    // position[v]: index of v in its candidate list, recorded when v is pushed.
-    // Each vertex is pushed at most once and pops only truncate a list, so a
-    // vertex that is still in a list keeps its position: lookups take O(1).
-    unsigned long* position = calloc(graph->num_nodes, sizeof(unsigned long));
-    position[0] = 0; // vertex 0 is pushed above, at index 0 of odd_stack
-
-    uint8_t four_last_are_mute = watermark_decode_improved_four_last_are_mute(graph);
-
-    uint8_t node_29_was_the_last = 0;
-    uint8_t node_27_was_the_last = 0;
-    unsigned long forward_edges_left = graph->num_nodes - 2 - (data_num_bits - data_begin);
-    uint8_t forward_destination = 0;
-    // number of forward edges expected (from |V| and n) minus those present in G
-    long present_fw = 0;
-    for(unsigned long k = 0; k + 2 < graph->num_nodes; k++)
-      if(graph_get_connection(graph->nodes[k], graph->nodes[k+2])) present_fw++;
-    long missing = (long)forward_edges_left - present_fw;
-    for(unsigned long graph_idx = 1; graph_idx < n_bits; graph_idx++, i++) {
-
-        if(data_begin + i >= data_num_bits) break;
-        uint8_t bit = 1; // hypothesis b_i = 1, used only by the admissibility test of rule 2.9
-        uint8_t is_odd = !(graph_idx&1);
-        STACK* possible_backedges = (is_odd && bit) || (!is_odd && !bit) ? even_stack : odd_stack ;
-        STACK* other_stack = possible_backedges == even_stack ? odd_stack : even_stack;
-
-        if(forward_destination) forward_destination--;
-        // if it isn't a mute node
-        if(!( graph_idx > 1 && graph_get_connection(graph->nodes[graph_idx-2], graph->nodes[graph_idx])) && forward_destination != 1 ) {
-
-            // 2.2 if it has a forward edge, it encodes a bit 1
-            if( graph_idx < n_bits && graph_get_connection(graph->nodes[graph_idx], graph->nodes[graph_idx+2]) ) {
-                forward_edges_left--;
-                bits[i]=1;
-            // 2.1/2.4 encode bit according to backedge
-            } else if( graph_get_backedge(graph->nodes[graph_idx]) ){
-                CONNECTION* backedge = graph_get_backedge(graph->nodes[graph_idx]);
-                bits[i] = backedge && (( graph_idx - backedge->node->graph_idx ) & 1);
-                // candidate list is chosen by the decoded parity, not by the key
-                possible_backedges = (is_odd && bits[i]) || (!is_odd && !bits[i]) ? even_stack : odd_stack;
-                other_stack = possible_backedges == even_stack ? odd_stack : even_stack;
-                // pop stacks
-                if(backedge) {
-                  NODE* backedge_node = backedge->node;
-                  // O(1) lookup of the backedge destination in its candidate list
-                  // (replaces a linear search; same result: 0 when it is absent)
-                  unsigned long dest = backedge_node->graph_idx;
-                  unsigned long backedge_index = 0;
-                  if(position[dest] < possible_backedges->n &&
-                     possible_backedges->stack[position[dest]] == dest) {
-                    backedge_index = position[dest];
-                  }
-                  stack_pop_until(possible_backedges, backedge_index); // pop backedge and all nodes on top of it
-                  stack_pop_until(other_stack, history[dest]); // indexed by vertex, as in the encoder
-                }
-                node_29_was_the_last = 0;
-                node_27_was_the_last = 0;
-                continue;
-            // 2.5 if hamiltonian edge [v -> v+1] doesn't exist, v encodes 1
-            } else if( !graph_get_connection(graph->nodes[graph_idx], graph->nodes[graph_idx+1]) ) {
-              bits[i] = 1;
-            // 2.6 if hamiltonian edge [v+1 -> v+2] doesn't exist, v encodes 1
-            } else if( !graph_get_connection(graph->nodes[graph_idx+1], graph->nodes[graph_idx+2]) ) {
-              bits[i] = 1;
-              forward_destination = 3;
-              forward_edges_left--;
-              missing--;
-            // 2.7 if node is fourth to last and four last nodes are mute, v encodes 1
-            } else if(four_last_are_mute && graph_idx == graph->num_nodes-4 && missing > 0) {
-              missing--;
-              bits[i] = 1;
-              node_27_was_the_last = 1;
-              forward_destination = 3;
-              forward_edges_left--;
-              continue;
-            // 2.8 if node is third to last and four last nodes are mute, v encodes 0
-            } else if(four_last_are_mute && graph_idx == graph->num_nodes-3 && node_27_was_the_last) {
-              bits[i] = 0;
-            // 2.9 v is the first in a sequence of three nodes without back or forward edges, v should encode 1 and
-            // it isn't possible to create a backedge in v, v encodes 0
-            } else if( watermark_decode_improved_sequence_of_three(graph, graph_idx) && 
-                !has_possible_backedge( possible_backedges, graph, graph_idx) && missing > 0) {
-              missing--;
-              bits[i] = 1;
-              node_29_was_the_last = 1;
-              forward_destination = 3;
-              forward_edges_left--;
-              continue;
-            // 2.10 if v - 1 is the node above, this one encodes 0
-            } else if( node_29_was_the_last ) {
-              bits[i] = 0;
-            // 2.11 if everything above is false, this node encodes 0
-            } else {
-              bits[i] = 0;
-            }
-        } else {
-            i--;
-        }
-        node_27_was_the_last = 0;
-        node_29_was_the_last = 0;
-
-        // if this is not a inner forward node
-        if(!graph_get_forward(graph->nodes[graph_idx-1])) {
-
-            // save stacks
-            // odd
-            if(is_odd) {
-                position[graph_idx] = odd_stack->n;
-                stack_push(odd_stack, graph_idx);
-                history[graph_idx] = even_stack->n;
-            // even
-            } else {
-                position[graph_idx] = even_stack->n;
-                stack_push(even_stack, graph_idx);
-                history[graph_idx] = odd_stack->n;
-            }
+    // 1-based edge arrays of G'
+    uint8_t* fwd = calloc(N + 3, 1);           // fwd[u]: [u -> u+2]
+    uint8_t* path = calloc(N + 3, 1);          // path[u]: [u -> u+1]
+    uint8_t* in_S = calloc(N + 3, 1);          // inferred mute vertices
+    unsigned long* back = calloc(N + 3, sizeof(unsigned long)); // back[u] = w for [w <- u], 0 if none
+    long num_fwd = 0;
+    for(unsigned long u = 1; u <= N; u++) {
+        for(CONNECTION* c = graph->nodes[u-1]->out; c; c = c->next) {
+            unsigned long w = c->node->graph_idx + 1;
+            if(w == u + 1) path[u] = 1;
+            else if(w == u + 2) { fwd[u] = 1; num_fwd++; }
+            else if(w < u) back[u] = w;
         }
     }
+    // number of forward edges expected from |V(G)| and n, minus those present in G'
+    long missing = (long)N - 2 - (long)n - num_fwd;
 
-    stack_free(odd_stack);
-    stack_free(even_stack);
-    free(history);
-    free(position);
-    // if the second last node is a forward edge destination, the
-    // third last node also needs to be ignored
-    uint8_t is_prev_last_forward_destination = !!( n_bits > 2 && graph_get_connection(graph->nodes[n_bits-2], graph->nodes[n_bits]) && data_begin + i < data_num_bits );
-    n_bits = i-is_prev_last_forward_destination;
-    // bit sequence may be smaller than expected due to mute nodes
-    void* res = get_sequence_from_bit_arr(bits, n_bits, &num_bytes);
-    *num_bits = n_bits;
+    unsigned long* list[2]; unsigned long list_n[2] = {0, 0};
+    list[0] = malloc((N + 1) * sizeof(unsigned long));
+    list[1] = malloc((N + 1) * sizeof(unsigned long));
+    list[1][list_n[1]++] = 1; // vertex 1 (odd)
+
+    uint8_t* bits = calloc(n + 1, 1);
+    unsigned long cnt = 0;
+    bits[cnt++] = 1;
+
+#define WM_HAS_OUT(u) ((u) <= N && (fwd[(u)] || back[(u)]))
+    for(unsigned long v = 2; N >= 2 && v <= N - 2; v++) {
+        if(cnt >= n) break;
+        uint8_t mute = (v >= 3 && fwd[v-2]) || in_S[v];
+        if(!mute) {
+            uint8_t b;
+            if(fwd[v]) {                                          // R1
+                b = 1;
+            } else if(back[v]) {                                  // R2
+                b = (v - back[v]) & 1;
+            } else if(!path[v]) {                                 // R3
+                b = 1;
+            } else if(!path[v+1]) {                               // R4
+                b = 1; in_S[v+2] = 1; missing--;
+            } else {
+                uint8_t no_odd_admissible;
+                if(v == 2) no_odd_admissible = 1;                 // the encoder may choose [2 -> 4] freely
+                else if(back[v-1]) no_odd_admissible = 1;         // condition (ii)
+                else if(fwd[v-1]) no_odd_admissible = 0;          // condition (i): [v-1 <- v] is admissible
+                else no_odd_admissible = list_n[(v + 1) & 1] == 0; // odd span: opposite parity
+                if(missing > 0 && !WM_HAS_OUT(v) && !WM_HAS_OUT(v+1) && !WM_HAS_OUT(v+2) && no_odd_admissible) {
+                    b = 1; in_S[v+2] = 1; missing--;              // R5
+                } else {
+                    b = 0;
+                }
+            }
+            bits[cnt++] = b;
+        }
+        // update the candidate lists with vertex v
+        if(back[v]) {
+            wm_list_truncate(list[0], &list_n[0], back[v]);
+            wm_list_truncate(list[1], &list_n[1], back[v]);
+        } else if(!fwd[v-1]) {
+            list[v & 1][list_n[v & 1]++] = v;
+        }
+    }
+#undef WM_HAS_OUT
+
+    void* res = get_sequence_from_bit_arr(bits, cnt, &num_bytes);
+    *num_bits = cnt;
+    free(fwd); free(path); free(in_S); free(back); free(list[0]); free(list[1]); free(bits);
     return res;
 }
 
