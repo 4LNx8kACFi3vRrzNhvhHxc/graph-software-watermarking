@@ -97,3 +97,7 @@ sh scripts/section44/run.sh       # see scripts/section44/README.md
 ```
 
 Options 5–7 are the removal experiments: they ask for the number of removed edges and the maximum identifier length (or, for option 7, the number of message symbols, of parity symbols and the symbol size) and print the report matrix used in the tables. The environment variable `START_BITS` makes them start at a given length.
+
+## Other files
+
+`test_improved.txt`, `test_rs.txt` and `tests/5_removal.txt` are outputs of earlier versions of the code and are not used in the paper. `cfg.sh` and `get_watermark_candidates.sh` extract the control-flow graphs of the functions in a C file (with clang and LLVM `opt`) to search for functions whose control-flow graphs are Dijkstra graphs; `examples/` contains sample programs for this search.
