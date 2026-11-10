@@ -578,7 +578,7 @@ int ask_for_comparison(char* dijkstra_code) {
                 if( (f = fopen(ent->d_name, "r")) != NULL ) {
                     GRAPH* g = graph_create_from_dot(f);
                     graph_topological_sort(g);
-                    if( dijkstra_check(g) ) {
+                    if( dijkstra_check_labeled(g) ) {
                         file_has_at_least_one_dijkstra_graph = 1;
                         char* current_dijkstra_code = dijkstra_get_code(g);
                         // only continues if the watermark can fit in the function
@@ -849,7 +849,7 @@ int main(void) {
                 fclose(f);
                 graph_topological_sort(graph);
                 graph_write_dot(graph, "dot.dot", filename);
-                if( dijkstra_check(graph) ) {
+                if( dijkstra_check_labeled(graph) ) {
                     char* code = dijkstra_get_code(graph);
                     graph_write_hamiltonian_dot(graph, "dot.dot", filename);
                     printf("dijkstra code: %s\n", code);
