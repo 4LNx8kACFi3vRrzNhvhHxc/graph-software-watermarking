@@ -5,9 +5,9 @@ Code and experimental results of the paper **"A Complete Graph-Based Watermarkin
 The repository implements the structured watermark codec, which encodes an identifier as a Dijkstra graph and decodes it back, together with:
 
 - the **improved decoder** of the paper (Algorithm 4), which receives only the watermark graph and the public length n of the encoded sequence and guarantees at most one wrong bit when a single encoding edge is removed, and none when that edge is a forward edge;
-- the **corrected recognition algorithm for Dijkstra graphs** (Algorithm 3), `dijkstra_check_labeled`;
+- the **corrected recognition algorithm for Dijkstra graphs** (Algorithm 3);
 - the **Reed–Solomon** layer used for exact recovery under single-edge removal;
-- the **removal-test harness** and scripts that reproduce Tables 2–5 of the paper, and the results themselves in [`results/`](results/).
+- the **removal-test harness** and scripts that reproduce Tables of the paper, and the results themselves in [`results/`](results/).
 
 ## Where things are
 
