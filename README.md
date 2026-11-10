@@ -50,30 +50,6 @@ make build COMPILER="gcc -fopenmp" FLAGS="-std=gnu99 -fPIC -Wall -Wextra -O3 -DN
 
 The executable is `build/main/watermark`. `make lib` builds the shared library `build/lib/libwatermark.so`.
 
-## Tests
-
-```sh
-make test
-# with gcc:
-make test COMPILER="gcc -fopenmp -Wl,--no-as-needed -lfec -lm" FLAGS="-std=gnu99 -fPIC -Wall -Wextra" DEBUGGER_COMMAND=
-```
-
-All 23 tests pass (checked with gcc 13.3).
-
-## Reproducing Tables 2–5
-
-```sh
-make build
-WATERMARK_SEED=1 sh scripts/run_tables.sh                                # writes results/raw/
-python3 scripts/make_tables.py results/raw results/tables
-```
-
-## Reproducing the tests of Section 4.4
-
-```sh
-sh scripts/section44/run.sh       # see scripts/section44/README.md
-```
-
 ## Interactive use
 
 `build/main/watermark` (or `make run`) opens a menu:
